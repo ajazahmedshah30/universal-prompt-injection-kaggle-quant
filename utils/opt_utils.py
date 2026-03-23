@@ -264,12 +264,51 @@ def get_nonascii_toks(tokenizer, device='cpu'):
     return torch.tensor(ascii_toks, device=device)
 
 def load_model_and_tokenizer(model_path, tokenizer_path=None, device='cuda:0', **kwargs):
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
+    load_in_8bit = bool(kwargs.pop("load_in_8bit", False))
+    load_in_4bit = bool(kwargs.pop("load_in_4bit", False))
+    device_map = kwargs.pop("device_map", None)
+    bnb_4bit_compute_dtype = kwargs.pop("bnb_4bit_compute_dtype", torch.float16)
+
+    model_kwargs = dict(
         torch_dtype=torch.float16,
         trust_remote_code=True,
-        **kwargs
-    ).to(device).eval()
+        **kwargs,
+    )
+
+    if load_in_4bit:
+        try:
+            from transformers import BitsAndBytesConfig
+        except Exception as e:
+            raise ImportError(
+                "4-bit quantization requires transformers with BitsAndBytesConfig and bitsandbytes installed."
+            ) from e
+        model_kwargs["quantization_config"] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=bnb_4bit_compute_dtype,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+        )
+        if device_map is None:
+            if str(device).startswith("cuda:"):
+                device_index = int(str(device).split(":")[-1])
+                device_map = {"": device_index}
+            else:
+                device_map = "auto"
+        model_kwargs["device_map"] = device_map
+    elif load_in_8bit:
+        model_kwargs["load_in_8bit"] = True
+        if device_map is None:
+            if str(device).startswith("cuda:"):
+                device_index = int(str(device).split(":")[-1])
+                device_map = {"": device_index}
+            else:
+                device_map = "auto"
+        model_kwargs["device_map"] = device_map
+
+    model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+    if not load_in_4bit and not load_in_8bit:
+        model = model.to(device)
+    model = model.eval()
 
     tokenizer_path = model_path if tokenizer_path is None else tokenizer_path
 
@@ -279,16 +318,17 @@ def load_model_and_tokenizer(model_path, tokenizer_path=None, device='cuda:0', *
         use_fast=False
     )
 
-    if 'oasst-sft-6-llama-30b' in tokenizer_path:
+    tokenizer_path_lower = str(tokenizer_path).lower()
+    if 'oasst-sft-6-llama-30b' in tokenizer_path_lower:
         tokenizer.bos_token_id = 1
         tokenizer.unk_token_id = 0
-    if 'guanaco' in tokenizer_path:
+    if 'guanaco' in tokenizer_path_lower:
         tokenizer.eos_token_id = 2
         tokenizer.unk_token_id = 0
-    if 'llama-2' in tokenizer_path:
+    if 'llama-2' in tokenizer_path_lower:
         tokenizer.pad_token = tokenizer.unk_token
         tokenizer.padding_side = 'left'
-    if 'falcon' in tokenizer_path:
+    if 'falcon' in tokenizer_path_lower:
         tokenizer.padding_side = 'left'
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token

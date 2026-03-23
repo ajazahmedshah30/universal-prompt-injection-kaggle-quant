@@ -73,6 +73,9 @@ def get_args():
     parser.add_argument("--point", type=int, default=-1)
     parser.add_argument("--target", type=int, default=0)
     parser.add_argument("--model", type=str, default="llama2")
+    parser.add_argument("--model_path", type=str, default="")
+    parser.add_argument("--load_in_8bit", action="store_true")
+    parser.add_argument("--load_in_4bit", action="store_true")
     parser.add_argument("--evaluate", type=str, default="duplicate_sentence_detection")
     parser.add_argument("--dataset_path", type=str, default="./data/")
     parser.add_argument("--path", type=str, default="")
@@ -90,12 +93,14 @@ if __name__ == '__main__':
                         "guanaco": "./models/guanaco/guanaco-7B-HF", "WizardLM": "./models/WizardLM/WizardLM-7B-V1.0",
                         "mpt-chat": "./models/mpt/mpt-7b-chat", "mpt-instruct": "./models/mpt/mpt-7b-instruct",
                         "falcon": "./models/falcon/falcon-7b-instruct", "llamag": "./models/llama2/llama-guard-7b"}
-    model_path = model_path_dicts[args.model]
+    model_path = args.model_path if args.model_path else model_path_dicts[args.model]
     template_name = args.model
 
     model, tokenizer = load_model_and_tokenizer(model_path,
                                                 low_cpu_mem_usage=True,
                                                 use_cache=False,
+                                                load_in_8bit=args.load_in_8bit,
+                                                load_in_4bit=args.load_in_4bit,
                                                 device=device)
     load_path = args.path
     save_path = load_path.replace('.json', f'_{args.evaluate}.json')

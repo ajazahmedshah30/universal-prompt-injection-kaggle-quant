@@ -84,6 +84,9 @@ def get_args():
 
     parser.add_argument("--model", type=str, default="llama2")
     parser.add_argument("--injection", type=str, default="semi-dynamic")
+    parser.add_argument("--model_path", type=str, default="")
+    parser.add_argument("--load_in_8bit", action="store_true")
+    parser.add_argument("--load_in_4bit", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -97,7 +100,7 @@ if __name__ == '__main__':
                         "guanaco": "./models/guanaco/guanaco-7B-HF", "WizardLM": "./models/WizardLM/WizardLM-7B-V1.0",
                         "mpt-chat": "./models/mpt/mpt-7b-chat", "mpt-instruct": "./models/mpt/mpt-7b-instruct",
                         "falcon": "./models/falcon/falcon-7b-instruct"}
-    model_path = model_path_dicts[args.model]
+    model_path = args.model_path if args.model_path else model_path_dicts[args.model]
     template_name = args.model
     adv_string_init = generate_pattern(args.tokens)
 
@@ -109,6 +112,8 @@ if __name__ == '__main__':
     model, tokenizer = load_model_and_tokenizer(model_path,
                                                 low_cpu_mem_usage=True,
                                                 use_cache=False,
+                                                load_in_8bit=args.load_in_8bit,
+                                                load_in_4bit=args.load_in_4bit,
                                                 device=device)
     not_allowed_tokens = None if allow_non_ascii else get_nonascii_toks(tokenizer)
 
